@@ -1,0 +1,120 @@
+# choose your sound
+sound = selected ("Sound")
+txtGrid = selected ("TextGrid")
+
+
+# delete the initial word "Sound " from the file name
+selectObject: sound
+outFileP$ = selected$ ()
+len = length: outFileP$
+outFileP$ = right$: outFileP$, len - 6
+outFileI$ = outFileP$ + "_Intensity.txt" ; intensities between pulses
+outFileP$ = outFileP$ + "_Pulses.txt" ; pulse timings
+
+intensity = To Intensity... 50 0
+
+selectObject: txtGrid
+
+plsTier = 9
+npulses = Get number of points... plsTier
+
+pulses# = zero# (npulses)
+
+for i to npulses
+	pulses# [i] = Get time of point: plsTier, i
+endfor
+
+sndTier = 3
+wrdTier = 4
+tknTier = 5
+
+nIntervals = Get number of intervals: sndTier ; number of intervals in the sounds tier
+
+j = 1 ; counter for pulses
+k = 0 ; counter for intensity
+currPulse = 0 ; current pulse time
+prevPulse = 0 ; previous pulse time
+
+for i from 2 to nIntervals - 1
+
+	selectObject: txtGrid
+
+	snd$ = Get label of interval: sndTier, i
+	sndPrv$ = Get label of interval: sndTier, i - 1 ; previous sound
+	sndNxt$ = Get label of interval: sndTier, i + 1 ; next sound
+	sndLft = Get start point: sndTier, i ; the left point of the interval
+	sndRght = Get end point: sndTier, i ; the right point of the interval
+
+	# check whether the sound is intervocal
+	if (snd$ = "l" or snd$ = "lˀ") and sndPrv$ <> "" and sndNxt$ <> ""
+
+		k = 0 ; we don't calculate intensity only for one point. hence in the beginning k = 0
+
+		currPulse = pulses# [j]
+
+		# skip all the pulses outside the desired sound
+		while j <= npulses - 1 and currPulse < sndLft
+			j = j + 1
+			currPulse = pulses# [j]
+		endwhile
+		
+		prevPulse = sndLft
+
+		if j <= npulses - 1
+			# write the token
+			appendFile: outFileP$, snd$, tab$
+			appendFile: outFileI$, snd$, tab$
+
+			# get the token data
+			wrd = Get interval at time: wrdTier, prevPulse
+			wrd$ = Get label of interval: wrdTier, wrd
+			tkn = Get interval at time: tknTier, prevPulse
+			tkn$ = Get label of interval: tknTier, tkn
+
+			# write the data
+			appendFile: outFileP$, wrd$, tab$, tkn$, tab$
+			appendFile: outFileI$, wrd$, tab$, tkn$, tab$
+
+			# write pulses into the file
+			while j <= npulses - 1 and currPulse < sndRght
+				if k = 0
+					k = 1
+				endif
+				selectObject: intensity
+				min_int = Get minimum... prevPulse currPulse Parabolic
+				max_int = Get maximum... prevPulse currPulse Parabolic
+				mean_int = Get mean... prevPulse currPulse dB
+				appendFile: outFileI$, fixed$ (min_int, 4), tab$, fixed$ (max_int, 4), tab$, fixed$ (mean_int, 4), tab$
+				appendFile: outFileP$, fixed$ (prevPulse, 4), tab$
+				j = j + 1
+				prevPulse = currPulse
+				currPulse = pulses# [j]
+			endwhile
+
+			# if we don't have pulses, we consider the beginning of the sound the first pulse
+			# this can happen only to l'
+			if snd$ = "lˀ" and k = 0
+				appendFile: outFileP$, fixed$ (sndLft, 4), tab$
+			else
+				appendFile: outFileP$, fixed$ (prevPulse, 4), tab$
+			endif
+
+			appendFile: outFileP$, fixed$ (sndRght, 4), tab$
+			
+			if k = 0
+				min_int = 0
+				max_int = 0
+				mean_int = 0
+			else
+				min_int = Get minimum... prevPulse sndRght Parabolic
+				max_int = Get maximum... prevPulse sndRght Parabolic
+				mean_int = Get mean... prevPulse sndRght dB
+			endif
+			appendFile: outFileI$, fixed$ (min_int, 4), tab$, fixed$ (max_int, 4), tab$, fixed$ (mean_int, 4), tab$
+
+			selectObject: txtGrid
+			appendFile: outFileP$, newline$
+			appendFile: outFileI$, newline$
+		endif
+	endif
+endfor
