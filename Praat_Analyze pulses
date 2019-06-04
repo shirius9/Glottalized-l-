@@ -1,0 +1,108 @@
+# choose your sound
+sound = selected ("Sound")
+txtGrid = selected ("TextGrid")
+
+
+# delete the initial word "Sound " from the file name
+selectObject: sound
+outFile$ = selected$ ()
+len = length: outFile$
+outFile$ = right$: outFile$, len - 6
+outFile$ = outFile$ + "_Pulses.txt"
+
+tmSt = 0.0 ; time step
+pFl = 75 ; pitch floor
+mCand = 15 ; max number of candidates
+sThr = 0.03 ; silence threshold
+vThr = 0.45 ; voicing threshold
+oCst = 0.01 ; octave cost
+ojCst = 0.35 ; octave jump cost
+uvCst = 0.14 ; voiced-unvoiced cost
+pCeil = 500 ; pitch ceiling
+
+# create the Pitch object
+pitch = To Pitch (cc)... tmSt pFl mCand no sThr vThr oCst ojCst uvCst pCeil
+
+# select the sound
+plus sound
+
+# create the PointProcess
+pls = To PointProcess (cc)
+
+# now the point process is selected
+
+npulses = Get number of points
+
+# extract all the pulses
+
+pulses# = zero# (npulses)
+
+# create an array with all the pulses
+for i to npulses
+	pulses# [i] = Get time from index... i
+endfor
+
+# input tier numbers
+#form Tiers
+	# sound tier
+#	positive sndTier
+	# word tier 
+#	positive wrdTier
+	# token number / type
+#	positive tknTier
+	# output file name
+#	sentence outFile$ 
+#endform
+
+sndTier = 1
+wrdTier = 6
+tknTier = 5
+
+
+# I assume that the textgrid is the second object
+
+selectObject: txtGrid
+
+# number of intervals in the sound tier for which pulses are required
+nIntervals = Get number of intervals: sndTier ; number of intervals in the sounds tier
+
+# find all the l and l' tokens, write their pulses
+
+j = 1
+for i from 2 to nIntervals - 1
+	snd$ = Get label of interval: sndTier, i
+	sndPrv$ = Get label of interval: sndTier, i - 1 ; previous sound
+	sndNxt$ = Get label of interval: sndTier, i + 1 ; next sound
+	sndLft = Get start point: sndTier, i ; the left point of the interval
+	sndRght = Get end point: sndTier, i ; the right point of the interval
+
+	# check whether the sound is intervocal
+	if (snd$ = "l" or snd$ = "lˀ") and sndPrv$ <> "" and sndNxt$ <> ""
+		t = pulses# [j]
+		# skip all the pulses outside the desired sound
+		while j <= npulses - 1 and t < sndLft
+			j = j + 1
+			t = pulses# [j]
+		endwhile
+		
+		if j < npulses
+			# write the token
+			appendFile: outFile$, snd$, " "
+
+			# write token data into the file
+			wrd = Get interval at time: wrdTier, pulses# [j]
+			wrd$ = Get label of interval: wrdTier, wrd
+			tkn = Get interval at time: tknTier, pulses# [j]
+			tkn$ = Get label of interval: tknTier, tkn
+			appendFile: outFile$, wrd$, " ", tkn$, " "
+
+			# write pulses into the file
+			while j <= npulses - 1 and t < sndRght
+				appendFile: outFile$, fixed$ (t, 4), " "
+				j = j + 1
+				t = pulses# [j]
+			endwhile
+			appendFile: outFile$, newline$
+		endif
+	endif
+endfor
